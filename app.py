@@ -8,6 +8,69 @@ import streamlit as st
 import MetaTrader5 as mt5
 import pandas as pd
 import pandas_ta as ta  # Librería sugerida para calcular RSI y MACD fácilmente
+import streamlit as st
+import MetaTrader5 as mt5
+# Obtener toda la información financiera de tu cuenta Pepperstone
+info_cuenta = mt5.account_info()
+
+if info_cuenta is not None:
+    import pandas as pd
+import pandas_ta as ta
+
+# Elegimos el activo financiero dentro del bróker
+activo = "EURUSD" 
+
+# Traer las últimas 200 velas (M15 = Gráficos de 15 minutos)
+velas = mt5.copy_rates_from_pos(activo, mt5.TIMEFRAME_M15, 0, 200)
+
+if candles is not None:
+    df = pd.DataFrame(velas)
+    df['time'] = pd.to_datetime(df['time'], unit='s')
+    
+    # Extraer los precios más altos y más bajos de la sesión actual
+    precio_alto_actual = df['high'].max()
+    precio_bajo_actual = df['low'].min()
+    precio_cierre_actual = df['close'].iloc[-1]
+    
+    # Cálculos matemáticos de tu estrategia integrada
+    df['EMA20'] = ta.ema(df['close'], length=20)
+    df['EMA50'] = ta.ema(df['close'], length=50)
+    df.ta.rsi(length=14, append=True)
+    df.ta.macd(fast=12, slow=26, signal=9, append=True)
+    
+    # Variables de la última vela cerrada para tu Guardian de Riesgo
+    ultima_fila = df.iloc[-2]
+    
+    # Mostrar resultados interactivos en la web
+    st.write(f"### Monitoreo Técnico: {activo}")
+    st.info(f"*Precio Actual:* {precio_cierre_actual} | *Máximo de sesión:* {precio_alto_actual} | *Mínimo de sesión:* {precio_bajo_actual}")
+    # Convertir a diccionario para extraer variables fácilmente
+    datos = info_cuenta._asdict()
+    
+    # Crear columnas métricas en tu panel de Streamlit
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Balance Total", f"${datos['balance']:.2f} {datos['currency']}")
+    col2.metric("Equidad en Vivo", f"${datos['equity']:.2f}")
+    col3.metric("Nivel de Margen (%)", f"{datos['margin_level']:.2f}%")
+
+# Configuración en tu barra lateral
+st.sidebar.header("Conexión Pepperstone")
+num_cuenta = st.sidebar.number_input("Número de Cuenta", value=12345678)
+password = st.sidebar.text_input("Contraseña", type="password")
+servidor = st.sidebar.selectbox("Servidor", ["Pepperstone-Demo", "Pepperstone-Live"])
+
+# Inicializar y conectar al bróker
+if st.sidebar.button("Conectar Servidor"):
+    if not mt5.initialize():
+        st.error("No se pudo iniciar MetaTrader 5 en tu computadora.")
+    else:
+        # Hacer el login con tus datos de Pepperstone
+        conectado = mt5.login(login=num_cuenta, password=password, server=servidor)
+        
+        if conectado:
+            st.success(f"Conectado exitosamente a Pepperstone ({servidor})")
+        else:
+            st.error(f"Fallo en las credenciales. Código de error: {mt5.last_error()}")
 
 # En tu barra lateral de Configuración
 st.sidebar.title("Configuración de Conexión")
