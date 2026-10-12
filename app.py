@@ -1,10 +1,4 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import MetaTrader5 as mt5
-import pandas_ta as ta
+
 
 # --- CONFIGURACIÓN DE LA INTERFAZ ---
 st.set_page_config(page_title="Trading Guardian", layout="wide")
