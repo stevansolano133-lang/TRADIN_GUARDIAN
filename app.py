@@ -4,6 +4,49 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import yfinance as yf
+import streamlit as st
+import MetaTrader5 as mt5
+import pandas as pd
+import pandas_ta as ta  # Librería sugerida para calcular RSI y MACD fácilmente
+
+# En tu barra lateral de Configuración
+st.sidebar.title("Configuración de Conexión")
+simbolo = st.sidebar.selectbox("Instrumento", ["EURUSD", "BTCUSD", "AAPL"])
+
+# 1. Inicializar la conexión con el Bróker
+if not mt5.initialize():
+    st.error(f"No se pudo conectar a MT5. Error: {mt5.last_error()}")
+else:
+    # 2. Traer las últimas 500 velas del activo seleccionado
+    # mt5.TIMEFRAME_M15 representa temporalidad de 15 minutos, cámbialo según tus inputs
+    rates = mt5.copy_rates_from_pos(simbolo, mt5.TIMEFRAME_M15, 0, 500)
+    
+    # Convertir a DataFrame de Pandas para procesar
+    df = pd.DataFrame(rates)
+    df['time'] = pd.to_datetime(df['time'], unit='s')
+    
+    # 3. Calcular RSI y MACD usando la librería técnica
+    df.ta.rsi(length=14, append=True)  # Crea la columna RSI_14
+    df.ta.macd(fast=12, slow=26, signal=9, append=True)  # Crea MACD_12_26_9
+    
+    # 4. Lógica para revisar "Método Técnico de Alzas y Bajas"
+    ultimo_registro = df.iloc[-1]
+    rsi_actual = ultimo_registro['RSI_14']
+    macd_linea = ultimo_registro['MACD_12_26_9']
+    macd_senal = ultimo_registro['MACDs_12_26_9']
+    
+    # Ejemplo visual en tu panel de Streamlit
+    st.metric(label=f"RSI Actual de {simbolo}", value=round(rsi_actual, 2))
+    
+    if rsi_actual < 30 and macd_linea > macd_senal:
+        st.success("🚨 SEÑAL DE ALZA TÉCNICA (Sobreventa + Cruce MACD)")
+    elif rsi_actual > 70 and macd_linea < macd_senal:
+        st.warning("🚨 SEÑAL DE BAJA TÉCNICA (Sobrecompra + Cruce MACD)")
+    else:
+        st.info("El mercado se encuentra en rango neutral.")
+
+    # Recuerda cerrar la conexión al finalizar los procesos pesados
+    mt5.shutdown()
 
 st.set_page_config(page_title="TRADING GUARDIAN", page_icon="📈", layout="wide")
 st.title("📈 TRADING GUARDIAN")
