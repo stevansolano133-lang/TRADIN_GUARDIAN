@@ -16,6 +16,7 @@ info_cuenta = mt5.account_info()
 if info_cuenta is not None:
     import pandas as pd
 import pandas_ta as ta
+streamlit run app.py
 
 # Elegimos el activo financiero dentro del bróker
 activo = "EURUSD" 
