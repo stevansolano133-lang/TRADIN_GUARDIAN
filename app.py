@@ -3,21 +3,81 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import yfinance as yf
-import streamlit as st
 import MetaTrader5 as mt5
-import pandas as pd
-import pandas_ta as ta  # Librería sugerida para calcular RSI y MACD fácilmente
-import streamlit as st
-import MetaTrader5 as mt5
-# Obtener toda la información financiera de tu cuenta Pepperstone
-info_cuenta = mt5.account_info()
-
-if info_cuenta is not None:
-    import pandas as pd
 import pandas_ta as ta
-streamlit run app.py
 
+# --- CONFIGURACIÓN DE LA INTERFAZ ---
+st.set_page_config(page_title="Trading Guardian", layout="wide")
+st.title("🛡️ TRADIN_GUARDIAN - Panel de Riesgo Pepperstone")
+
+# Parámetros en la barra lateral
+st.sidebar.title("🔑 Configuración")
+ema_rapida_val = st.sidebar.number_input("EMA Rápida", value=20)
+ema_lenta_val = st.sidebar.number_input("EMA Lenta", value=50)
+riesgo_operacion = st.sidebar.number_input("Riesgo por operación (%)", value=0.50) / 100
+
+# Parámetros de cuenta Pepperstone
+cuenta_input = st.sidebar.text_input("Número de Cuenta", value="1234567")
+pass_input = st.sidebar.text_input("Contraseña", type="password")
+servidor_input = st.sidebar.selectbox("Servidor", ["Pepperstone-Demo", "Pepperstone-Live"])
+
+activo = st.sidebar.selectbox("Elegir Activo", ["EURUSD", "GBPUSD", "BTCUSD", "AAPL"])
+
+# --- LÓGICA DE CONEXIÓN Y ANÁLISIS ---
+if st.sidebar.button("Enlazar con MT5 🔄"):
+    # 1. Inicializar la plataforma
+    if not mt5.initialize():
+        st.error(f"Error al inicializar MT5. Código: {mt5.last_error()}")
+    else:
+        # 2. Hacer login en Pepperstone
+        conectado = mt5.login(login=int(cuenta_input), password=pass_input, server=servidor_input)
+        
+        if not conectado:
+            st.error(f"Error de login en Pepperstone: {mt5.last_error()}")
+            mt5.shutdown()
+        else:
+            st.success("✅ Conectado exitosamente a Pepperstone")
+            
+            # 3. Obtener Información de la Cuenta
+            info_cuenta = mt5.account_info()
+            if info_cuenta is not None:
+                datos_cuenta = info_cuenta._asdict()
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Balance Total", f"${datos_cuenta['balance']:.2f} {datos_cuenta['currency']}")
+                col2.metric("Equidad en Vivo", f"${datos_cuenta['equity']:.2f}")
+                col3.metric("Margen Libre", f"${datos_cuenta['margin_free']:.2f}")
+                
+                # Dinero exacto que estás arriesgando según tu 0.50%
+                dinero_riesgo = datos_cuenta['balance'] * riesgo_operacion
+                st.sidebar.metric("Dinero Máximo en Riesgo", f"${dinero_riesgo:.2f} USD")
+
+            # 4. Traer los datos técnicos (Últimas 200 velas M15)
+            velas = mt5.copy_rates_from_pos(activo, mt5.TIMEFRAME_M15, 0, 200)
+            
+            if velas is not None and len(velas) > 0:
+                df = pd.DataFrame(velas)
+                df['time'] = pd.to_datetime(df['time'], unit='s')
+                
+                # Precios máximos y mínimos de la sesión
+                precio_alto_actual = df['high'].max()
+                precio_bajo_actual = df['low'].min()
+                precio_cierre_actual = df['close'].iloc[-1]
+                
+                # 5. Cálculos Matemáticos de Indicadores
+                df['EMA_20'] = ta.ema(df['close'], length=ema_rapida_val)
+                df['EMA_50'] = ta.ema(df['close'], length=ema_lenta_val)
+                df.ta.rsi(length=14, append=True)
+                df.ta.macd(fast=12, slow=26, signal=9, append=True)
+                
+                # Renombrar columnas de MACD autogeneradas por pandas_ta si es necesario
+                # Usualmente crea: MACD_12_26_9 (línea) y MACDs_12_26_9 (señal)
+                
+                ultima_vela = df.iloc[-2]  # Vela completamente cerrada
+                
+                # Mostrar estados actuales
+                st.write(f"### Monitoreo en Vivo:  {activo}")
+                st.info(f"*Precio Actual:* {precio_cierre_actual} | *Máximo:* {precio_alto_actual} | *Mínimo:* {precio_bajo_actual}")
+                
 # Elegimos el activo financiero dentro del bróker
 activo = "EURUSD" 
 
